@@ -3,10 +3,23 @@
   "version": "0.1.0",
   "description": "ABIs and deployed addresses for the Zero Arena on-chain contracts.",
   "license": "MIT",
+  "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./abi/*": "./dist/abi/*",
+    "./addresses": "./dist/addresses.json"
+  },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build:abi": "node scripts/build-abi.mjs",
@@ -18,5 +31,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Zero-Arena/zero-arena-contracts.git"
+  },
+  "engines": {
+    "node": ">=20.6.0"
   }
 }
