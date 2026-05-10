@@ -29,11 +29,16 @@ contract ZeroArenaINFTTest is Test {
         inft = new ZeroArenaINFT(admin, address(oracle), address(certs));
     }
 
+    uint8 constant T2 = 2;
+    uint8 constant SPOT = 0;
+
     function _submitPassingCert(address owner) internal returns (uint256) {
         vm.prank(owner);
         return certs.submit(
             keccak256("r"), keccak256("s"), keccak256("d"),
-            int128(500), uint128(1500), uint16(800), uint16(5500)
+            bytes32(0),
+            int128(500), uint128(1500), uint16(800), uint16(5500),
+            T2, SPOT
         );
     }
 
@@ -73,7 +78,9 @@ contract ZeroArenaINFTTest is Test {
         vm.prank(alice);
         uint256 certId = certs.submit(
             keccak256("r"), keccak256("s"), keccak256("d"),
-            int128(500), uint128(500), uint16(800), uint16(5500) // Sharpe 0.5 < 1.0
+            bytes32(0),
+            int128(500), uint128(500), uint16(800), uint16(5500), // Sharpe 0.5 < 1.0
+            T2, SPOT
         );
 
         vm.prank(alice);
