@@ -8,9 +8,13 @@ This repo holds the on-chain logic. The TypeScript SDK that consumes these contr
 
 | Contract | Purpose |
 | - | - |
-| [`AgentCertificate.sol`](src/AgentCertificate.sol) | Append-only registry of deterministic backtest results. Anchors `runHash`, `storageRootHash`, `datasetHash`, and headline metrics. |
+| [`AgentCertificate.sol`](src/AgentCertificate.sol) | Append-only registry of deterministic backtest results. Anchors `runHash`, `storageRootHash`, `datasetHash`, headline metrics, `trustTier` (T1/T2/T3) and the reserved `attestationHash` slot for v0.2 TEE attestation reports. |
 | [`ZeroArenaINFT.sol`](src/ZeroArenaINFT.sol) | ERC-7857 Intelligent NFT for trading agents. Mints require a certificate that clears configurable thresholds. Vanilla ERC-721 transfers are disabled — ownership moves only through the oracle re-encryption flow. |
-| [`oracle/ReencryptionOracle.sol`](src/oracle/ReencryptionOracle.sol) | v0.1 trusted-signer stub that verifies sealed-key proofs produced off-chain. Production must replace this with TEE-attested verification. |
+| [`oracle/ReencryptionOracle.sol`](src/oracle/ReencryptionOracle.sol) | v0.1 trusted-signer stub that verifies sealed-key proofs produced off-chain. v0.2 replaces this with TEE-attested verification against 0G Compute Sealed Inference quotes. |
+
+## Trust model on-chain
+
+Each `Certificate` carries a `trustTier` byte (`1=T1`, `2=T2`, `3=T3`) and an `attestationHash` field. v0.1 contracts accept submissions tagged T1 or T2 with `attestationHash = 0x0`. v0.2 contracts (no ABI break) will additionally accept T3 submissions whose `attestationHash` decodes to a valid 0G Compute Sealed Inference quote. The full tier table is in the [org README](https://github.com/Zero-Arena).
 
 The ERC-7857 interface implemented here follows the [0G iNFT specification](https://docs.0g.ai/developer-hub/building-on-0g/inft/erc7857): `transfer`, `clone`, `authorizeUsage`, plus the `MetadataUpdated` / `UsageAuthorized` / `OracleUpdated` events.
 
@@ -67,7 +71,7 @@ The SDK never imports Solidity source — only ABIs and addresses. Contract refa
 - `AgentCertificate` has no admin role and no upgrade path — submissions are immutable.
 - `ZeroArenaINFT` overrides `transferFrom` and `safeTransferFrom` to revert. The `Approval` machinery is left in place so approved operators can call `transfer` / `clone` on behalf of the owner.
 - `_update(to, tokenId, address(0))` is used inside `transfer` to bypass the standard ERC-721 auth check; authorization is provided by the oracle proof instead.
-- `ReencryptionOracle` trusts a single ECDSA signer for v0.1. The signer address is mutable by the contract owner via `setSigner`. **Do not deploy the v0.1 oracle to mainnet without TEE attestation.**
+- `ReencryptionOracle` trusts a single ECDSA signer for v0.1. The signer address is mutable by the contract owner via `setSigner`. **Do not deploy the v0.1 oracle to mainnet without TEE attestation.** v0.2 replaces `verifyProof()` with verification of 0G Compute Sealed Inference quotes (Intel TDX + NVIDIA H100/H200), so the oracle interface stays stable but the trust root becomes hardware-rooted.
 
 ## License
 
