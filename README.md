@@ -40,7 +40,21 @@ To run tests with the heavy fuzz/invariant profile:
 FOUNDRY_PROFILE=ci forge test
 ```
 
-## Deploy (Galileo testnet)
+## Live deployment — Galileo testnet (chain ID 16602)
+
+| Contract | Address | Source |
+| - | - | - |
+| `AgentCertificate` | [`0x21a5DEA59cfA07B261d389A9554477e137805c2f`](https://chainscan-galileo.0g.ai/address/0x21a5dea59cfa07b261d389a9554477e137805c2f) | Verified ✓ |
+| `ReencryptionOracle` | [`0x63909dA30b0d65ad72b32b3C8C82515f7BFA6Fd6`](https://chainscan-galileo.0g.ai/address/0x63909da30b0d65ad72b32b3c8c82515f7bfa6fd6) | Verified ✓ |
+| `ZeroArenaINFT` | [`0x4Bd4d45f206861aa7cD4421785a316A1dD06036f`](https://chainscan-galileo.0g.ai/address/0x4bd4d45f206861aa7cd4421785a316a1dd06036f) | Verified ✓ |
+
+- **Deployer / admin (Wallet A):** [`0xB1a5402E46d5360D46A9fE0807D3C927b3f50DbD`](https://chainscan-galileo.0g.ai/address/0xb1a5402e46d5360d46a9fe0807d3c927b3f50dbd) — `Ownable2Step` admin on `ReencryptionOracle` and `ZeroArenaINFT`.
+- **Oracle signer (Wallet B):** [`0xDEf4B61EAF80eEd763c2D5C443e2b56cB2d600D1`](https://chainscan-galileo.0g.ai/address/0xdef4b61eaf80eed763c2d5c443e2b56cb2d600d1) — signs ERC-7857 re-encryption proofs off-chain. Read back from `ReencryptionOracle.signer()`.
+- **Deploy block:** 32563974 / 32563975 (deploy date 2026-05-10).
+
+These addresses are the canonical v0.1 testnet deployment. They're also written to [`deployments/galileo-testnet.json`](deployments/galileo-testnet.json) and shipped in `@zero-arena/contracts/dist/addresses.json`.
+
+## Deploying your own copy
 
 ```bash
 cp .env.example .env
@@ -50,10 +64,58 @@ forge script script/DeployAll.s.sol:DeployAll \
   --rpc-url $GALILEO_RPC_URL \
   --private-key $DEPLOYER_PRIVATE_KEY \
   --broadcast \
-  --verify
+  --legacy --with-gas-price 3000000000
 ```
 
-The script writes addresses to `deployments/galileo-testnet.json`, which is checked into git and consumed by the SDK at publish time.
+Galileo enforces a strict-greater-than-2-gwei priority fee — Foundry's default tip cap is far below this, so `--legacy --with-gas-price 3000000000` (3 gwei) is required to avoid `transaction gas price below minimum`. The script writes addresses to `deployments/galileo-testnet.json`.
+
+### Source verification
+
+Galileo's explorer (chainscan) is a SPA — its public `/api` path returns 405 for `POST`. The actual Etherscan-compatible verifier endpoint sits at `/open/api`, with verifier type `custom` (NOT `blockscout`). The flow is per-contract:
+
+```bash
+# AgentCertificate — no constructor args
+forge verify-contract \
+  --chain-id 16602 \
+  --num-of-optimizations 200 \
+  --compiler-version "v0.8.24+commit.e11b9ed9" \
+  --verifier custom \
+  --verifier-url https://chainscan-galileo.0g.ai/open/api \
+  --verifier-api-key PLACEHOLDER \
+  0x21a5DEA59cfA07B261d389A9554477e137805c2f \
+  src/AgentCertificate.sol:AgentCertificate
+
+# ReencryptionOracle — (admin, signer)
+forge verify-contract \
+  --chain-id 16602 \
+  --num-of-optimizations 200 \
+  --compiler-version "v0.8.24+commit.e11b9ed9" \
+  --verifier custom \
+  --verifier-url https://chainscan-galileo.0g.ai/open/api \
+  --verifier-api-key PLACEHOLDER \
+  --constructor-args $(cast abi-encode "constructor(address,address)" $DEPLOYER_ADDRESS $ORACLE_SIGNER_ADDRESS) \
+  <oracleAddress> \
+  src/oracle/ReencryptionOracle.sol:ReencryptionOracle
+
+# ZeroArenaINFT — (admin, oracleAddress, certificate)
+forge verify-contract \
+  --chain-id 16602 \
+  --num-of-optimizations 200 \
+  --compiler-version "v0.8.24+commit.e11b9ed9" \
+  --verifier custom \
+  --verifier-url https://chainscan-galileo.0g.ai/open/api \
+  --verifier-api-key PLACEHOLDER \
+  --constructor-args $(cast abi-encode "constructor(address,address,address)" $DEPLOYER_ADDRESS <oracleAddress> <certAddress>) \
+  <inftAddress> \
+  src/ZeroArenaINFT.sol:ZeroArenaINFT
+```
+
+Status check (avoid `forge verify-check` — it currently mis-handles the GUID; curl directly instead):
+
+```bash
+curl -s "https://chainscan-galileo.0g.ai/open/api?module=contract&action=checkverifystatus&guid=<GUID>"
+# → {"status":"1","message":"OK","result":"Pass - Verified"}
+```
 
 ## Cross-repo coupling
 
