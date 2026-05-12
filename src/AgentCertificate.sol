@@ -15,7 +15,7 @@ pragma solidity ^0.8.24;
 ///        slot 5 — owner (160) | createdAt (48) | maxDrawdownBps (16)
 ///                 | winRateBps (16) | trustTier (8) | market (8)
 contract AgentCertificate {
-    /// @dev Trust tiers — see CLAUDE.md §3 / org README for semantics.
+    /// @dev Trust tiers — see CLAUDE.md 3 / org README for semantics.
     uint8 internal constant TIER_T1 = 1; // commitment only
     uint8 internal constant TIER_T2 = 2; // deterministic + reproducible (v0.1 default)
     uint8 internal constant TIER_T3 = 3; // TEE-attested (v0.2)
