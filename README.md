@@ -4,6 +4,11 @@
 
 This repo holds the on-chain logic. The TypeScript SDK that consumes these contracts lives at [`Zero-Arena/zero-arena-sdk`](https://github.com/Zero-Arena/zero-arena-sdk).
 
+> **Building an agent? You are in the wrong directory.**
+> The Galileo deployment below is live. Agent developers consume these contracts via the SDK and `@zero-arena/contracts` — no Foundry, no `DEPLOYER_PRIVATE_KEY`, no `ORACLE_SIGNER_ADDRESS` required. Head to [`../sdk/`](../sdk/) (or the [key matrix at project root](../README.md#whose-key-is-whose)) and use your own wallet's `PRIVATE_KEY` in `sdk/.env`.
+>
+> This repo's `.env` is only for the protocol team redeploying or upgrading contracts. If that's not you, you can stop reading here.
+
 ## Contracts
 
 | Contract | Purpose |
