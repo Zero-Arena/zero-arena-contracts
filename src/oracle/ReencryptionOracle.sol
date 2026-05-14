@@ -6,12 +6,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IReencryptionOracle} from "../interfaces/IReencryptionOracle.sol";
 
-/// @title ReencryptionOracle (v0.1 trusted-signer stub)
-/// @notice Records the public address that signs sealed-key proofs off-chain.
-///         The off-chain service performs the actual re-encryption inside a
-///         (currently simulated) TEE; this contract only verifies the signature
-///         and the proof's freshness. Production must swap this for a contract
-///         that consumes a TEE attestation rather than a single ECDSA key.
+// v0.1 trusted-signer stub. The off-chain service performs the actual
+// re-encryption (currently in a simulated TEE) and signs the proof here.
+// v0.2 replaces this with a contract that consumes a real TEE attestation.
 contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -36,7 +33,6 @@ contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
         emit SignerUpdated(old, newSigner);
     }
 
-    /// @inheritdoc IReencryptionOracle
     function verifyTransfer(
         address inft,
         uint256 tokenId,
@@ -49,18 +45,10 @@ contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
     ) external view returns (bool) {
         if (block.timestamp > deadline) revert ProofExpired();
 
-        bytes32 digest = keccak256(
-            abi.encode(
-                block.chainid,
-                inft,
-                tokenId,
-                from,
-                to,
-                sealedKeyHash,
-                newMetadataHash,
-                deadline
-            )
-        ).toEthSignedMessageHash();
+        bytes32 digest = keccak256(abi.encode(
+            block.chainid, inft, tokenId, from, to,
+            sealedKeyHash, newMetadataHash, deadline
+        )).toEthSignedMessageHash();
 
         return digest.recover(signature) == signer;
     }

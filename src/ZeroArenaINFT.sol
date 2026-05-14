@@ -9,11 +9,9 @@ import {IERC7857} from "./interfaces/IERC7857.sol";
 import {IReencryptionOracle} from "./interfaces/IReencryptionOracle.sol";
 import {AgentCertificate} from "./AgentCertificate.sol";
 
-/// @title ZeroArenaINFT — ERC-7857 Intelligent NFT for verified trading agents.
-/// @notice Mints require a passing AgentCertificate. Vanilla ERC-721 transfers
-///         are disabled; ownership moves only through `transfer` / `clone`,
-///         which require a fresh oracle proof attesting that the data key has
-///         been re-encrypted for the recipient.
+// ERC-7857 iNFT. Mint gated by AgentCertificate thresholds. Vanilla ERC-721
+// transfers are disabled; ownership moves only via `transfer` / `clone`, which
+// require an oracle proof that the sealed key has been re-encrypted for `to`.
 contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
     error VanillaTransferDisabled();
     error CertificateNotOwned();
@@ -37,7 +35,7 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
     AgentCertificate public immutable certificateContract;
     IReencryptionOracle public oracle;
 
-    int128  public minTotalReturnBps; // default 0 — no loss
+    int128  public minTotalReturnBps;
     uint128 public minSharpeX1000 = 1000; // Sharpe >= 1.0
 
     mapping(uint256 => bytes32) public metadataHashes;
@@ -57,8 +55,6 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit OracleUpdated(address(0), oracleAddress);
     }
 
-    // ─── admin ──────────────────────────────────────────────────────────────
-
     function setOracle(address newOracle) external onlyOwner {
         require(newOracle != address(0), "zero addr");
         address old = address(oracle);
@@ -72,11 +68,6 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit ThresholdsUpdated(minReturn, minSharpe);
     }
 
-    // ─── mint ───────────────────────────────────────────────────────────────
-
-    /// @notice Mint a new iNFT for the holder of `certificateId`. Caller must
-    ///         match the certificate's recorded owner and the run must clear
-    ///         the configured thresholds.
     function mint(uint256 certificateId, bytes32 metadataHash, bytes32 storageRoot)
         external
         returns (uint256 tokenId)
@@ -89,9 +80,7 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
             revert ThresholdNotMet();
         }
 
-        unchecked {
-            tokenId = nextTokenId++;
-        }
+        unchecked { tokenId = nextTokenId++; }
 
         metadataHashes[tokenId] = metadataHash;
         storageRoots[tokenId] = storageRoot;
@@ -102,10 +91,7 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit MetadataUpdated(tokenId, metadataHash);
     }
 
-    // ─── ERC-7857 ───────────────────────────────────────────────────────────
-
-    /// @inheritdoc IERC7857
-    /// @dev `proof` is `abi.encode(bytes32 newMetadataHash, uint256 deadline, bytes signature)`.
+    // proof = abi.encode(bytes32 newMetadataHash, uint256 deadline, bytes signature)
     function transfer(
         address from,
         address to,
@@ -123,18 +109,10 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         (bytes32 newMetadataHash, uint256 deadline, bytes memory signature) =
             abi.decode(proof, (bytes32, uint256, bytes));
 
-        if (
-            !oracle.verifyTransfer(
-                address(this),
-                tokenId,
-                from,
-                to,
-                keccak256(sealedKey),
-                newMetadataHash,
-                deadline,
-                signature
-            )
-        ) revert InvalidProof();
+        if (!oracle.verifyTransfer(
+            address(this), tokenId, from, to,
+            keccak256(sealedKey), newMetadataHash, deadline, signature
+        )) revert InvalidProof();
 
         if (newMetadataHash != metadataHashes[tokenId]) {
             metadataHashes[tokenId] = newMetadataHash;
@@ -145,7 +123,6 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit SealedKeyDelivered(tokenId, to, sealedKey);
     }
 
-    /// @inheritdoc IERC7857
     function clone(address to, uint256 tokenId, bytes calldata sealedKey, bytes calldata proof)
         external
         override
@@ -158,22 +135,12 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         (bytes32 newMetadataHash, uint256 deadline, bytes memory signature) =
             abi.decode(proof, (bytes32, uint256, bytes));
 
-        unchecked {
-            newTokenId = nextTokenId++;
-        }
+        unchecked { newTokenId = nextTokenId++; }
 
-        if (
-            !oracle.verifyTransfer(
-                address(this),
-                newTokenId,
-                owner_,
-                to,
-                keccak256(sealedKey),
-                newMetadataHash,
-                deadline,
-                signature
-            )
-        ) revert InvalidProof();
+        if (!oracle.verifyTransfer(
+            address(this), newTokenId, owner_, to,
+            keccak256(sealedKey), newMetadataHash, deadline, signature
+        )) revert InvalidProof();
 
         metadataHashes[newTokenId] = newMetadataHash;
         storageRoots[newTokenId] = storageRoots[tokenId];
@@ -184,7 +151,6 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit SealedKeyDelivered(newTokenId, to, sealedKey);
     }
 
-    /// @inheritdoc IERC7857
     function authorizeUsage(uint256 tokenId, address executor, bytes calldata permissions)
         external
         override
@@ -195,8 +161,8 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         emit UsageAuthorized(tokenId, executor);
     }
 
-    // ─── disable vanilla ERC-721 transfer paths ─────────────────────────────
-
+    // Vanilla 721 transfers would leak the encrypted blob to a recipient
+    // without a key — force everything through the oracle flow above.
     function transferFrom(address, address, uint256) public pure override(ERC721, IERC721) {
         revert VanillaTransferDisabled();
     }
@@ -208,8 +174,6 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
     {
         revert VanillaTransferDisabled();
     }
-
-    // ─── views ──────────────────────────────────────────────────────────────
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, IERC165) returns (bool) {
         return interfaceId == type(IERC7857).interfaceId || super.supportsInterface(interfaceId);
