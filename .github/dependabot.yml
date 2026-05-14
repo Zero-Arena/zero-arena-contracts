@@ -1,0 +1,23 @@
+# Dependabot config for zero-arena-contracts.
+# Foundry submodules (lib/) are pinned by `.gitmodules` — Dependabot doesn't
+# manage them. Tracks the tiny npm side-package (ABI publisher) + actions.
+
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions"
