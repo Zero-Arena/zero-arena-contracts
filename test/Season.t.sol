@@ -48,7 +48,6 @@ contract SeasonTest is Test {
     uint8 constant SPOT = 0;
     uint8 constant PERP = 1;
 
-    bytes32 constant GENESIS = keccak256("genesis");
     bytes32 constant DATASET_BTC_15M_SPOT = keccak256("BTCUSDT-15m-spot");
 
     function setUp() public {
@@ -72,13 +71,17 @@ contract SeasonTest is Test {
     function _mintCert(address owner, uint8 market) internal returns (uint256 certId) {
         vm.prank(owner);
         certId = certs.submit(
-            keccak256(abi.encode("r", owner, market)),
+            _certRunHashFor(owner, market),
             keccak256(abi.encode("s", owner)),
             keccak256(abi.encode("d", market)),
             bytes32(0),
             int128(500), uint128(1500), uint16(800), uint16(5500),
             T2, market
         );
+    }
+
+    function _certRunHashFor(address owner, uint8 market) internal pure returns (bytes32) {
+        return keccak256(abi.encode("r", owner, market));
     }
 
     function _defaultSpec(uint64 startsAfter, uint64 durationSec, uint256 prize)
@@ -215,9 +218,9 @@ contract SeasonTest is Test {
 
         // Move into the season window, start runs, record metrics.
         vm.warp(block.timestamp + 1 hours + 1);
-        vm.prank(alice); live.start(1, GENESIS);
-        vm.prank(bob);   live.start(2, GENESIS);
-        vm.prank(carol); live.start(3, GENESIS);
+        vm.prank(alice); live.start(1, _certRunHashFor(alice, SPOT));
+        vm.prank(bob);   live.start(2, _certRunHashFor(bob,   SPOT));
+        vm.prank(carol); live.start(3, _certRunHashFor(carol, SPOT));
 
         // Distinct returns so the leaderboard is unambiguous: alice > bob > carol.
         vm.prank(operator); live.update(1, 0, keccak256("a"), int128(2500), 0, 0, 0); // +25%
@@ -293,7 +296,7 @@ contract SeasonTest is Test {
         vm.prank(alice); season.enroll(id, 1);
 
         vm.warp(block.timestamp + 1 hours + 1);
-        vm.prank(alice); live.start(1, GENESIS);
+        vm.prank(alice); live.start(1, _certRunHashFor(alice, SPOT));
         vm.prank(operator); live.update(1, 0, keccak256("a"), int128(2500), 0, 0, 0);
 
         vm.warp(block.timestamp + 7 days + 1);

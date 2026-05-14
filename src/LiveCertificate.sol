@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {AgentCertificate} from "./AgentCertificate.sol";
+import {ZeroArenaINFT} from "./ZeroArenaINFT.sol";
 
 /// @title LiveCertificate
 /// @notice Append-only on-chain track record for a paper-trading agent. Per
@@ -41,6 +43,7 @@ contract LiveCertificate is Ownable2Step {
     error EpochOutOfOrder(uint64 expected, uint64 got);
     error UnauthorizedUpdater();
     error EmptyHash();
+    error GenesisMismatch(bytes32 expected, bytes32 got);
 
     event PaperRunStarted(
         uint256 indexed tokenId,
@@ -64,7 +67,9 @@ contract LiveCertificate is Ownable2Step {
     event UpdaterSet(address indexed updater, bool allowed);
 
     /// @notice The iNFT whose ownership controls who may start / stop a run.
-    IERC721 public immutable inft;
+    ///         Stored as the concrete type so we can reach the underlying
+    ///         {AgentCertificate} for the genesis-hash cross-check in {start}.
+    ZeroArenaINFT public immutable inft;
 
     /// @notice Per-tokenId paper-run state. Public getter is auto-generated.
     mapping(uint256 => LiveRun) public runs;
@@ -75,7 +80,7 @@ contract LiveCertificate is Ownable2Step {
 
     constructor(address admin, address inftAddress) Ownable(admin) {
         require(inftAddress != address(0), "zero addr");
-        inft = IERC721(inftAddress);
+        inft = ZeroArenaINFT(inftAddress);
     }
 
     // ─── admin ──────────────────────────────────────────────────────────────
@@ -91,12 +96,20 @@ contract LiveCertificate is Ownable2Step {
     /// @notice Begin a paper run for an iNFT the caller owns.
     /// @param tokenId The iNFT token whose strategy will trade live.
     /// @param initialCumulativeHash The static cert's `runHash` — the chain's
-    ///                              genesis. The off-chain verifier replays
-    ///                              from this value, so it must match.
+    ///                              genesis. Must equal the `runHash` recorded
+    ///                              in {AgentCertificate} for the cert bound
+    ///                              to this iNFT; the off-chain verifier
+    ///                              replays from this value.
     function start(uint256 tokenId, bytes32 initialCumulativeHash) external {
         if (inft.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (runs[tokenId].startedAt != 0) revert AlreadyStarted();
         if (initialCumulativeHash == bytes32(0)) revert EmptyHash();
+
+        uint256 certId = inft.certificateOf(tokenId);
+        bytes32 certRunHash = inft.certificateContract().get(certId).runHash;
+        if (initialCumulativeHash != certRunHash) {
+            revert GenesisMismatch({expected: certRunHash, got: initialCumulativeHash});
+        }
 
         runs[tokenId] = LiveRun({
             cumulativeHash:     initialCumulativeHash,
