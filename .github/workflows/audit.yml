@@ -1,0 +1,43 @@
+# Audit gate. forge test on push + PR, npm audit weekly + on PR (only
+# touches the small ABI side-package), and a forge fmt drift check.
+
+name: Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      - name: forge fmt --check
+        run: forge fmt --check src test script
+      - name: forge build
+        run: forge build --sizes
+      - name: forge test
+        run: forge test -vvv
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: install
+        run: npm install --ignore-scripts
+      - name: Fail on high-or-critical advisories
+        run: npm audit --audit-level=high
+      - name: Warn on moderate (non-blocking)
+        if: always()
+        run: npm audit --audit-level=moderate || true
