@@ -8,3 +8,4 @@ broadcast/*/run-latest.json
 .env.*
 !.env.example
 *.log
+.npmrc
