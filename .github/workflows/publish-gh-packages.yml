@@ -1,0 +1,39 @@
+# Publish @zero-arena/contracts to GitHub Packages on every `contracts-v*` tag.
+# Mirror of the npmjs.org publish — both registries serve the same artifact.
+
+name: Publish to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'contracts-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@zero-arena'
+
+      - run: forge build
+      - run: node scripts/build-abi.mjs
+
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
