@@ -17,15 +17,19 @@
 
 | Contract | Address |
 | - | - |
-| `AgentCertificate` | [`0x21a5DEA59cfA07B261d389A9554477e137805c2f`](https://chainscan-galileo.0g.ai/address/0x21a5dea59cfa07b261d389a9554477e137805c2f) ✓ |
-| `ReencryptionOracle` | [`0x63909dA30b0d65ad72b32b3C8C82515f7BFA6Fd6`](https://chainscan-galileo.0g.ai/address/0x63909da30b0d65ad72b32b3c8c82515f7bfa6fd6) ✓ |
-| `ZeroArenaINFT` | [`0x4Bd4d45f206861aa7cD4421785a316A1dD06036f`](https://chainscan-galileo.0g.ai/address/0x4bd4d45f206861aa7cd4421785a316a1dd06036f) ✓ |
+| `AgentCertificate` | [`0x77f29d2a7BcAC679812d9a0FB1c7508eDA6B087e`](https://chainscan-galileo.0g.ai/address/0x77f29d2a7bcac679812d9a0fb1c7508eda6b087e) |
+| `ReencryptionOracle` | [`0x733667CEBB27e310a8fb60799Af73A8C1fe501b2`](https://chainscan-galileo.0g.ai/address/0x733667cebb27e310a8fb60799af73a8c1fe501b2) |
+| `ZeroArenaINFT` | [`0xF7162ecbdB11DE4704043D4aF93B4030AD61700e`](https://chainscan-galileo.0g.ai/address/0xf7162ecbdb11de4704043d4af93b4030ad61700e) |
+| `LiveCertificate` | [`0x2c71fe022E4698f8fD63384A19Cd69D72a714b4d`](https://chainscan-galileo.0g.ai/address/0x2c71fe022e4698f8fd63384a19cd69d72a714b4d) |
+| `Season` | [`0x8fb87CE34b4e8F4C65eeB6752b0168EC37806CF3`](https://chainscan-galileo.0g.ai/address/0x8fb87ce34b4e8f4c65eeb6752b0168ec37806cf3) |
 
 - Deployer / admin: [`0xB1a5402E…3f50DbD`](https://chainscan-galileo.0g.ai/address/0xb1a5402e46d5360d46a9fe0807d3c927b3f50dbd)
 - Oracle signer: [`0xDEf4B61E…2d600D1`](https://chainscan-galileo.0g.ai/address/0xdef4b61eaf80eed763c2d5c443e2b56cb2d600d1)
-- Deploy block: 32563974 (2026-05-10)
+- Deploy block: 33200264 (2026-05-14)
 
-Pinned in [`deployments/galileo-testnet.json`](deployments/galileo-testnet.json) and shipped in `@zero-arena/contracts/dist/addresses.json`.
+Pinned in [`deployments/galileo-testnet.json`](deployments/galileo-testnet.json) and [`deployments/galileo-paper-engine.json`](deployments/galileo-paper-engine.json); shipped in `@zero-arena/contracts/dist/addresses.json`.
+
+> v0.1 contracts at `0x21a5…`, `0x6390…`, `0x4Bd4…` are deprecated and no longer maintained.
 
 ## Build + test
 
