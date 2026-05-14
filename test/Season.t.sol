@@ -2,20 +2,38 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {AgentCertificate} from "../src/AgentCertificate.sol";
 import {LiveCertificate} from "../src/LiveCertificate.sol";
 import {Season} from "../src/Season.sol";
 
+/// @dev Minimal iNFT stub that satisfies the slice of {ZeroArenaINFT} the
+///      {Season} contract calls: `ownerOf`, `certificateOf`, and
+///      `certificateContract()`. We pair it with a real {AgentCertificate}
+///      so the market-mismatch check exercises the real type the production
+///      code reads.
 contract MockINFT {
-    mapping(uint256 => address) public owners;
-    function setOwner(uint256 tokenId, address owner) external { owners[tokenId] = owner; }
+    AgentCertificate public certificateContract;
+    mapping(uint256 => address) internal _owners;
+    mapping(uint256 => uint256) public certificateOf;
+
+    constructor(AgentCertificate certs) {
+        certificateContract = certs;
+    }
+
+    function setToken(uint256 tokenId, address owner, uint256 certId) external {
+        _owners[tokenId] = owner;
+        certificateOf[tokenId] = certId;
+    }
+
     function ownerOf(uint256 tokenId) external view returns (address) {
-        address o = owners[tokenId];
+        address o = _owners[tokenId];
         require(o != address(0), "no owner");
         return o;
     }
 }
 
 contract SeasonTest is Test {
+    AgentCertificate certs;
     LiveCertificate live;
     Season season;
     MockINFT inft;
@@ -26,23 +44,41 @@ contract SeasonTest is Test {
     address bob      = makeAddr("bob");
     address carol    = makeAddr("carol");
 
+    uint8 constant T2   = 2;
+    uint8 constant SPOT = 0;
+    uint8 constant PERP = 1;
+
     bytes32 constant GENESIS = keccak256("genesis");
     bytes32 constant DATASET_BTC_15M_SPOT = keccak256("BTCUSDT-15m-spot");
 
     function setUp() public {
-        inft = new MockINFT();
+        certs = new AgentCertificate(admin);
+        inft = new MockINFT(certs);
         live = new LiveCertificate(admin, address(inft));
         season = new Season(admin, address(live), address(inft));
 
         vm.prank(admin);
         live.setUpdater(operator, true);
 
-        inft.setOwner(1, alice);
-        inft.setOwner(2, bob);
-        inft.setOwner(3, carol);
+        // Bind tokens 1-3 to spot certificates owned by alice/bob/carol.
+        inft.setToken(1, alice, _mintCert(alice, SPOT));
+        inft.setToken(2, bob,   _mintCert(bob,   SPOT));
+        inft.setToken(3, carol, _mintCert(carol, SPOT));
 
         // Fund admin so it can create prize-pooled seasons.
         vm.deal(admin, 100 ether);
+    }
+
+    function _mintCert(address owner, uint8 market) internal returns (uint256 certId) {
+        vm.prank(owner);
+        certId = certs.submit(
+            keccak256(abi.encode("r", owner, market)),
+            keccak256(abi.encode("s", owner)),
+            keccak256(abi.encode("d", market)),
+            bytes32(0),
+            int128(500), uint128(1500), uint16(800), uint16(5500),
+            T2, market
+        );
     }
 
     function _defaultSpec(uint64 startsAfter, uint64 durationSec, uint256 prize)
@@ -113,6 +149,32 @@ contract SeasonTest is Test {
         season.enroll(id, 1);
         assertTrue(season.enrolled(id, 1));
         assertEq(season.participantCount(id), 1);
+    }
+
+    function test_enroll_rejects_market_mismatch_spot_season_perp_token() public {
+        // Issue a perp cert for alice and bind token 10 to it.
+        uint256 perpCertId = _mintCert(alice, PERP);
+        inft.setToken(10, alice, perpCertId);
+
+        vm.prank(admin);
+        uint256 id = season.createSeason{value: 1 ether}(_defaultSpec(1 hours, 7 days, 1 ether)); // market=SPOT
+
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Season.MarketMismatch.selector, SPOT, PERP));
+        season.enroll(id, 10);
+    }
+
+    function test_enroll_rejects_market_mismatch_perp_season_spot_token() public {
+        Season.SeasonSpec memory spec = _defaultSpec(1 hours, 7 days, 1 ether);
+        spec.market = PERP;
+        spec.maxLeverage = 5;
+        vm.prank(admin);
+        uint256 id = season.createSeason{value: 1 ether}(spec);
+
+        // Token 1 has a SPOT cert from setUp.
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Season.MarketMismatch.selector, PERP, SPOT));
+        season.enroll(id, 1);
     }
 
     function test_enroll_rejects_non_owner_of_token() public {
@@ -198,7 +260,8 @@ contract SeasonTest is Test {
         uint256 id = _setupSeasonWithThreeEnrolled();
         vm.warp(block.timestamp + 7 days + 1);
 
-        inft.setOwner(99, alice);
+        // Token 99 is never enrolled; ownerOf doesn't have to resolve since
+        // the enrollment check fires first.
         uint256[] memory bad = new uint256[](1);
         bad[0] = 99;
         vm.expectRevert(Season.NotEnrolled.selector);
