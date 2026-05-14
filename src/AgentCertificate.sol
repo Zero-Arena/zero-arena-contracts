@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+
 /// @title AgentCertificate
 /// @notice Append-only registry of verifiable backtest results. Each certificate
 ///         binds an agent's run log (stored encrypted on 0G Storage) to its
@@ -14,7 +16,11 @@ pragma solidity ^0.8.24;
 ///        slot 4 — totalReturnBps (int128) | sharpeX1000 (uint128)
 ///        slot 5 — owner (160) | createdAt (48) | maxDrawdownBps (16)
 ///                 | winRateBps (16) | trustTier (8) | market (8)
-contract AgentCertificate {
+///         Existing certificates (slot 0..5) are NEVER mutated by the admin.
+///         The admin role is forward-looking — no admin functions are exposed in
+///         v0.2. The role exists so v0.3+ extensions (threshold tuning, T3
+///         verifier wiring) can be added without redeploying the registry.
+contract AgentCertificate is Ownable2Step {
     /// @dev Trust tiers — see CLAUDE.md 3 / org README for semantics.
     uint8 internal constant TIER_T1 = 1; // commitment only
     uint8 internal constant TIER_T2 = 2; // deterministic + reproducible (v0.1 default)
@@ -56,6 +62,8 @@ contract AgentCertificate {
 
     uint256 public nextCertId = 1;
     mapping(uint256 => Certificate) private _certs;
+
+    constructor(address admin) Ownable(admin) {}
 
     /// @notice Submit a new certificate.
     /// @dev v0.1 deployments only allow T1 / T2 submissions (attestationHash must be 0).

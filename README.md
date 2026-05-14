@@ -64,7 +64,7 @@ forge verify-contract \
   <addr> src/<Path>.sol:<Contract>
 ```
 
-Add `--constructor-args $(cast abi-encode "constructor(address,address)" $DEPLOYER_ADDRESS $ORACLE_SIGNER_ADDRESS)` for `ReencryptionOracle`, and `"constructor(address,address,address)"` with admin/oracle/cert for `ZeroArenaINFT`.
+Add `--constructor-args $(cast abi-encode "constructor(address)" $DEPLOYER_ADDRESS)` for `AgentCertificate`, `"constructor(address,address)"` with deployer/signer for `ReencryptionOracle`, and `"constructor(address,address,address)"` with admin/oracle/cert for `ZeroArenaINFT`.
 
 `forge verify-check` currently mishandles the GUID — poll status with:
 
@@ -84,8 +84,8 @@ Full runbook: [`sdk/RELEASE.md`](https://github.com/Zero-Arena/zero-arena-sdk/bl
 
 ## Notes
 
-- `Certificate` packs into 5 storage slots.
-- `AgentCertificate` has no admin role and no upgrade path — submissions are immutable.
+- `Certificate` packs into 6 storage slots.
+- `AgentCertificate` is `Ownable2Step` — the admin role is wired but exposes no admin functions in v0.2. It is reserved for v0.3+ extensions (threshold tuning, T3 verifier registration). Existing certificates remain immutable.
 - `ZeroArenaINFT` overrides `transferFrom`/`safeTransferFrom` to revert; the oracle proof provides authorization for `transfer`/`clone`.
 - `ReencryptionOracle` trusts a single ECDSA signer in v0.1 (mutable via `setSigner`). **Do not deploy v0.1 oracle to mainnet** — v0.2 replaces `verifyProof()` with 0G Compute TEE quote verification.
 
