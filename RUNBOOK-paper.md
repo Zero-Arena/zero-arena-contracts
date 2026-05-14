@@ -9,11 +9,12 @@ Prerequisites:
 - `foundry` installed (`brew install foundry` on macOS)
 - Two funded Galileo wallets:
   - **Wallet A (admin/deployer)** — deploys contracts, creates seasons.
-    Already has `DEPLOYER_PRIVATE_KEY` from the v0.1 deploy.
-  - **Wallet B (operator)** — the backend daemon's wallet. Authorized in
-    `LiveCertificate.authorizedUpdaters`. Needs Galileo gas.
-- Existing v0.1 deployment: `AgentCertificate`, `ZeroArenaINFT`,
-  `ReencryptionOracle` addresses in `deployments/galileo-testnet.json`.
+    Holds `DEPLOYER_PRIVATE_KEY`.
+  - **Operator wallet** — the backend daemon's wallet. Authorized in
+    `LiveCertificate.authorizedUpdaters`. Needs Galileo gas. May be the
+    same address as Wallet A (default v0.2 deployment uses Wallet A).
+- v0.2 deployment already lives in `deployments/galileo-testnet.json`
+  and `deployments/galileo-paper-engine.json`.
 
 ---
 
@@ -23,8 +24,8 @@ Prerequisites:
 export GALILEO_RPC_URL=https://evmrpc-testnet.0g.ai
 export DEPLOYER_PRIVATE_KEY=0x...        # Wallet A
 export DEPLOYER_ADDRESS=0x...
-export OPERATOR_ADDRESS=0x...            # Wallet B
-export ZA_ADDR_INFT=0x4Bd4d45f206861aa7cD4421785a316A1dD06036f
+export OPERATOR_ADDRESS=0x...            # paper-engine updater wallet
+export ZA_ADDR_INFT=0xF7162ecbdB11DE4704043D4aF93B4030AD61700e
 
 forge script script/DeployPaperEngine.s.sol:DeployPaperEngine \
   --rpc-url $GALILEO_RPC_URL \
@@ -79,9 +80,9 @@ Output prints the `Season id` — note it for step 3.
 Run this as the iNFT **owner** (not the deployer, unless they're the same wallet).
 
 ```bash
-export ZA_ADDR_CERT=0x21a5DEA59cfA07B261d389A9554477e137805c2f
-export ZA_ADDR_LIVE_CERT=0x...                # from step 1
-export ZA_ADDR_SEASON=0x...                   # from step 1
+export ZA_ADDR_CERT=0x77f29d2a7BcAC679812d9a0FB1c7508eDA6B087e
+export ZA_ADDR_LIVE_CERT=0x2c71fe022E4698f8fD63384A19Cd69D72a714b4d
+export ZA_ADDR_SEASON=0x8fb87CE34b4e8F4C65eeB6752b0168EC37806CF3
 export PAPER_TOKEN_ID=1                       # iNFT to compete with
 export PAPER_CERT_ID=1                        # its underlying cert
 export PAPER_SEASON_ID=1                      # season from step 2
@@ -102,16 +103,16 @@ This does two writes in one broadcast: `Season.enroll(seasonId, tokenId)` then `
 In `zero-arena-bacend/.env`:
 
 ```ini
-# v0.1 dataset + oracle (existing)
+# v0.2 dataset + oracle (existing)
 ZA_RPC=https://evmrpc-testnet.0g.ai
 ZA_INDEXER=https://indexer-storage-testnet-turbo.0g.ai
-OPERATOR_PRIVATE_KEY=0x...                    # Wallet B
-ZA_ADDR_CERT=0x21a5DEA59cfA07B261d389A9554477e137805c2f
-ZA_ADDR_INFT=0x4Bd4d45f206861aa7cD4421785a316A1dD06036f
-ZA_ADDR_ORACLE=0x63909dA30b0d65ad72b32b3C8C82515f7BFA6Fd6
+OPERATOR_PRIVATE_KEY=0x...                    # paper-engine updater wallet
+ZA_ADDR_CERT=0x77f29d2a7BcAC679812d9a0FB1c7508eDA6B087e
+ZA_ADDR_INFT=0xF7162ecbdB11DE4704043D4aF93B4030AD61700e
+ZA_ADDR_ORACLE=0x733667CEBB27e310a8fb60799Af73A8C1fe501b2
 
-# v0.3 paper (new)
-ZA_ADDR_LIVE_CERT=0x...                       # from step 1
+# v0.3 paper engine
+ZA_ADDR_LIVE_CERT=0x2c71fe022E4698f8fD63384A19Cd69D72a714b4d
 PAPER_TOKEN_ID=1                              # which iNFT this daemon drives
 PAPER_AGENT_MODULE=/abs/path/to/agent.ts      # default-exports your Agent
 PAPER_GENESIS_HASH=0x...                      # this iNFT's static-cert runHash
