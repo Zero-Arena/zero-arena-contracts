@@ -24,7 +24,7 @@ contract ZeroArenaINFTTest is Test {
 
     function setUp() public {
         signerAddr = vm.addr(signerKey);
-        certs = new AgentCertificate();
+        certs = new AgentCertificate(admin);
         oracle = new ReencryptionOracle(admin, signerAddr);
         inft = new ZeroArenaINFT(admin, address(oracle), address(certs));
     }

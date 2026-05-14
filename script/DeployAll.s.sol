@@ -19,7 +19,7 @@ contract DeployAll is Script {
 
         vm.startBroadcast();
 
-        AgentCertificate cert = new AgentCertificate();
+        AgentCertificate cert = new AgentCertificate(admin);
         ReencryptionOracle oracle = new ReencryptionOracle(admin, oracleSigner);
         ZeroArenaINFT inft = new ZeroArenaINFT(admin, address(oracle), address(cert));
 

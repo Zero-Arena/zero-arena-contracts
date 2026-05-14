@@ -4,7 +4,9 @@ pragma solidity ^0.8.24;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {AgentCertificate} from "./AgentCertificate.sol";
 import {LiveCertificate} from "./LiveCertificate.sol";
+import {ZeroArenaINFT} from "./ZeroArenaINFT.sol";
 
 /// @title Season
 /// @notice Competition wrapper for paper-trading runs. Each season pins a
@@ -45,6 +47,7 @@ contract Season is Ownable2Step, ReentrancyGuard {
     error HintNotSorted();
     error HintTooLong();
     error PayoutFailed();
+    error MarketMismatch(uint8 expected, uint8 got);
 
     event SeasonCreated(
         uint256 indexed id,
@@ -60,8 +63,10 @@ contract Season is Ownable2Step, ReentrancyGuard {
     /// @notice The LiveCertificate this Season reads rankings from.
     LiveCertificate public immutable live;
 
-    /// @notice The iNFT contract used to look up token owners for payouts.
-    IERC721 public immutable inft;
+    /// @notice The iNFT contract used to look up token owners + the underlying
+    ///         certificate so we can reject enrollments whose market does not
+    ///         match the season's `SeasonSpec.market`.
+    ZeroArenaINFT public immutable inft;
 
     uint256 public nextSeasonId = 1;
     mapping(uint256 => SeasonSpec) public seasons;
@@ -75,7 +80,7 @@ contract Season is Ownable2Step, ReentrancyGuard {
     constructor(address admin, address liveAddress, address inftAddress) Ownable(admin) {
         require(liveAddress != address(0) && inftAddress != address(0), "zero addr");
         live = LiveCertificate(liveAddress);
-        inft = IERC721(inftAddress);
+        inft = ZeroArenaINFT(inftAddress);
     }
 
     // ─── season lifecycle ──────────────────────────────────────────────────
@@ -115,13 +120,19 @@ contract Season is Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice Enroll an owned iNFT into a season. Must be called before
-    ///         the season's `startTime`.
+    ///         the season's `startTime`. The iNFT's underlying certificate
+    ///         must have been issued for the same market as the season —
+    ///         a spot cert cannot enter a perp season and vice versa.
     function enroll(uint256 seasonId, uint256 tokenId) external {
         SeasonSpec memory s = seasons[seasonId];
         if (s.startTime == 0) revert UnknownSeason();
         if (block.timestamp >= s.startTime) revert EnrollmentClosed();
         if (inft.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
         if (enrolled[seasonId][tokenId]) revert AlreadyEnrolled();
+
+        uint256 certId = inft.certificateOf(tokenId);
+        AgentCertificate.Certificate memory cert = inft.certificateContract().get(certId);
+        if (cert.market != s.market) revert MarketMismatch(s.market, cert.market);
 
         enrolled[seasonId][tokenId] = true;
         participants[seasonId].push(tokenId);

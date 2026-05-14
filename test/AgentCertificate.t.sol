@@ -7,6 +7,7 @@ import {AgentCertificate} from "../src/AgentCertificate.sol";
 contract AgentCertificateTest is Test {
     AgentCertificate cert;
 
+    address admin = makeAddr("admin");
     address alice = makeAddr("alice");
 
     uint8 constant T1 = 1;
@@ -17,7 +18,7 @@ contract AgentCertificateTest is Test {
     uint8 constant PERP = 1;
 
     function setUp() public {
-        cert = new AgentCertificate();
+        cert = new AgentCertificate(admin);
     }
 
     function test_submit_assigns_sequential_ids_and_stores_metrics() public {
@@ -109,6 +110,27 @@ contract AgentCertificateTest is Test {
     function test_get_unknown_reverts() public {
         vm.expectRevert(AgentCertificate.UnknownCertificate.selector);
         cert.get(42);
+    }
+
+    function test_admin_role_set_from_constructor() public view {
+        assertEq(cert.owner(), admin);
+    }
+
+    function test_admin_transfer_is_two_step() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(admin);
+        cert.transferOwnership(newAdmin);
+
+        // Pending — not yet effective.
+        assertEq(cert.owner(), admin);
+        assertEq(cert.pendingOwner(), newAdmin);
+
+        vm.prank(newAdmin);
+        cert.acceptOwnership();
+
+        assertEq(cert.owner(), newAdmin);
+        assertEq(cert.pendingOwner(), address(0));
     }
 
     function testFuzz_submit_preserves_metrics(

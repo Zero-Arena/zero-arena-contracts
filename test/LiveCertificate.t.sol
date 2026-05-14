@@ -2,26 +2,36 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {AgentCertificate} from "../src/AgentCertificate.sol";
 import {LiveCertificate} from "../src/LiveCertificate.sol";
 
-/// Minimal ERC-721 stub so LiveCertificate's `ownerOf` lookups resolve in
-/// tests without spinning up the real ZeroArenaINFT (which carries its own
-/// oracle + certificate dependencies — orthogonal to what we're testing).
+/// @dev Minimal iNFT stub that satisfies the slice of {ZeroArenaINFT} that
+///      {LiveCertificate.start} reads — `ownerOf`, `certificateOf`, and
+///      `certificateContract()`. Paired with a real {AgentCertificate} so
+///      the genesis-runHash cross-check exercises the production type.
 contract MockINFT {
-    mapping(uint256 => address) public owners;
+    AgentCertificate public certificateContract;
+    mapping(uint256 => address) internal _owners;
+    mapping(uint256 => uint256) public certificateOf;
 
-    function setOwner(uint256 tokenId, address owner) external {
-        owners[tokenId] = owner;
+    constructor(AgentCertificate certs) {
+        certificateContract = certs;
+    }
+
+    function setToken(uint256 tokenId, address owner, uint256 certId) external {
+        _owners[tokenId] = owner;
+        certificateOf[tokenId] = certId;
     }
 
     function ownerOf(uint256 tokenId) external view returns (address) {
-        address o = owners[tokenId];
+        address o = _owners[tokenId];
         require(o != address(0), "no owner");
         return o;
     }
 }
 
 contract LiveCertificateTest is Test {
+    AgentCertificate certs;
     LiveCertificate live;
     MockINFT inft;
 
@@ -31,17 +41,35 @@ contract LiveCertificateTest is Test {
     address bob      = makeAddr("bob");
 
     uint256 constant TOKEN_A = 1;
+    uint8   constant T2      = 2;
+    uint8   constant SPOT    = 0;
 
     bytes32 constant GENESIS_HASH = keccak256("static-cert-runhash");
 
     function setUp() public {
-        inft = new MockINFT();
+        certs = new AgentCertificate(admin);
+        inft = new MockINFT(certs);
         live = new LiveCertificate(admin, address(inft));
 
         vm.prank(admin);
         live.setUpdater(operator, true);
 
-        inft.setOwner(TOKEN_A, alice);
+        // Bind TOKEN_A to a cert whose runHash matches GENESIS_HASH so
+        // existing start()-then-update() tests continue to work.
+        uint256 certId = _submitCert(alice, GENESIS_HASH);
+        inft.setToken(TOKEN_A, alice, certId);
+    }
+
+    function _submitCert(address owner, bytes32 runHash) internal returns (uint256) {
+        vm.prank(owner);
+        return certs.submit(
+            runHash,
+            keccak256(abi.encode("storage", owner)),
+            keccak256(abi.encode("dataset", owner)),
+            bytes32(0),
+            int128(0), uint128(1000), uint16(0), uint16(0),
+            T2, SPOT
+        );
     }
 
     // ─── start ────────────────────────────────────────────────────────────
@@ -69,6 +97,19 @@ contract LiveCertificateTest is Test {
         vm.prank(alice);
         vm.expectRevert(LiveCertificate.EmptyHash.selector);
         live.start(TOKEN_A, bytes32(0));
+    }
+
+    function test_start_rejects_mismatched_genesis_hash() public {
+        bytes32 wrong = keccak256("not-the-cert-runhash");
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LiveCertificate.GenesisMismatch.selector,
+                GENESIS_HASH,
+                wrong
+            )
+        );
+        live.start(TOKEN_A, wrong);
     }
 
     function test_start_rejects_double_start() public {
