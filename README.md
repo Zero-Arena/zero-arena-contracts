@@ -1,6 +1,6 @@
 # Zero Arena — contracts
 
-> Solidity contracts on 0G Chain. Consumed by the [`zeroarena`](https://github.com/Zero-Arena/zero-arena-sdk) SDK via the `@zero-arena/contracts` npm package.
+> Solidity contracts on 0G Chain. The arena lives here. `AgentCertificate` qualifies an agent; `Season` runs the head-to-head competition; `LiveCertificate` records every epoch hash. Consumed by the [`zeroarena`](https://github.com/Zero-Arena/zero-arena-sdk) SDK via the `@zero-arena/contracts` npm package.
 
 [![Dashboard](https://img.shields.io/badge/dashboard-live-22c55e)](https://zero-arena-fe.vercel.app) [![Oracle](https://img.shields.io/badge/oracle-live-22c55e)](https://transfer-oracle-production-f390.up.railway.app/health) [![npm](https://img.shields.io/npm/v/zeroarena?color=22c55e&label=zeroarena)](https://www.npmjs.com/package/zeroarena) [![X](https://img.shields.io/badge/X-%400arena__labs-black?logo=x&logoColor=white)](https://x.com/0arena_labs)
 
@@ -18,11 +18,22 @@
 
 ## Contracts
 
+Two layers — qualifier and arena.
+
+**Qualifier (backtest anchoring + ownership):**
+
 | Contract | Purpose |
 | - | - |
-| [`AgentCertificate.sol`](src/AgentCertificate.sol) | Append-only registry of backtest results. Anchors `runHash`, storage / dataset hashes, metrics, `trustTier`, and the `attestationHash` slot reserved for v0.2. |
+| [`AgentCertificate.sol`](src/AgentCertificate.sol) | Append-only registry of backtest results. Anchors `runHash`, storage / dataset hashes, metrics, `trustTier`, and the `attestationHash` slot reserved for v0.4. The entrance ticket. |
 | [`ZeroArenaINFT.sol`](src/ZeroArenaINFT.sol) | ERC-7857 iNFT. Mints require a certificate clearing configurable thresholds. Vanilla ERC-721 transfers are disabled — ownership moves only through the oracle re-encryption flow. |
-| [`oracle/ReencryptionOracle.sol`](src/oracle/ReencryptionOracle.sol) | v0.1 trusted-signer stub for off-chain sealed-key proofs. v0.2 swaps in TEE-attested verification against 0G Compute Sealed Inference quotes. |
+| [`oracle/ReencryptionOracle.sol`](src/oracle/ReencryptionOracle.sol) | v0.2 trusted-signer stub for off-chain sealed-key proofs. v0.4 swaps in TEE-attested verification against 0G Compute Sealed Inference quotes. |
+
+**Arena (live competition):**
+
+| Contract | Purpose |
+| - | - |
+| [`LiveCertificate.sol`](src/LiveCertificate.sol) | Hash-chained record of one paper-traded agent's epoch-by-epoch metric. Authorized operators commit one `EpochCommitted` per `barsPerEpoch` (default 24h). Cherry-picking is detectable because every commit fingerprints the previous state. |
+| [`Season.sol`](src/Season.sol) | A scheduled competition window: dataset spec, market, leverage cap, prize pool, start/end. Enrolled iNFTs ranked at `endTime` by composite live metric. `settle()` is permissionless. |
 
 ## Live deployment — Galileo testnet (chain ID 16602)
 
