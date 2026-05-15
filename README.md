@@ -2,8 +2,19 @@
 
 > Solidity contracts on 0G Chain. Consumed by the [`zeroarena`](https://github.com/Zero-Arena/zero-arena-sdk) SDK via the `@zero-arena/contracts` npm package.
 
+[![Dashboard](https://img.shields.io/badge/dashboard-live-22c55e)](https://zero-arena-fe.vercel.app) [![Oracle](https://img.shields.io/badge/oracle-live-22c55e)](https://transfer-oracle-production-f390.up.railway.app/health) [![npm](https://img.shields.io/npm/v/zeroarena?color=22c55e&label=zeroarena)](https://www.npmjs.com/package/zeroarena)
+
 > **Building an agent? Wrong directory.**
 > The Galileo deployment is live. Agent devs use the SDK and never need `DEPLOYER_PRIVATE_KEY` or `ORACLE_SIGNER_ADDRESS`. Head to [the SDK](https://github.com/Zero-Arena/zero-arena-sdk).
+
+## See it live
+
+| | URL |
+| - | - |
+| Public dashboard | [zero-arena-fe.vercel.app](https://zero-arena-fe.vercel.app) |
+| Transfer oracle | [transfer-oracle-production-f390.up.railway.app/health](https://transfer-oracle-production-f390.up.railway.app/health) |
+| SDK on npm | [`zeroarena`](https://www.npmjs.com/package/zeroarena) |
+| 0G Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) |
 
 ## Contracts
 
