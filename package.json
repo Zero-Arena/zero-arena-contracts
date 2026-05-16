@@ -1,6 +1,6 @@
 {
   "name": "@zero-arena/contracts",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ABIs and deployed addresses for the Zero Arena on-chain contracts.",
   "license": "MIT",
   "type": "module",
