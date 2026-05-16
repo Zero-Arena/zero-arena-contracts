@@ -6,12 +6,21 @@ import {AgentCertificate} from "../src/AgentCertificate.sol";
 import {ReencryptionOracle} from "../src/oracle/ReencryptionOracle.sol";
 import {ZeroArenaINFT} from "../src/ZeroArenaINFT.sol";
 
-/// @notice Deploys the three Zero Arena contracts and writes addresses to
-///         deployments/galileo-testnet.json. Intended invocation:
+/// @notice Deploys the three Zero Arena qualifier contracts (AgentCertificate,
+///         ReencryptionOracle, ZeroArenaINFT) and writes the addresses to
+///         `deployments/<chainId>.json`. Same script targets Galileo testnet
+///         (16602) and 0G mainnet (16661) — the output filename is keyed on
+///         `block.chainid` so deployments don't overwrite each other.
 ///
+///   # Mainnet (16661):
 ///   forge script script/DeployAll.s.sol:DeployAll \
-///     --rpc-url $GALILEO_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY \
-///     --broadcast --verify
+///     --rpc-url https://evmrpc.0g.ai --private-key $DEPLOYER_PRIVATE_KEY \
+///     --broadcast
+///
+///   # Galileo testnet (16602) — legacy gas tip > 2 gwei required:
+///   forge script script/DeployAll.s.sol:DeployAll \
+///     --rpc-url https://evmrpc-testnet.0g.ai --private-key $DEPLOYER_PRIVATE_KEY \
+///     --broadcast --legacy --with-gas-price 3000000000
 contract DeployAll is Script {
     function run() external {
         address admin = vm.envAddress("DEPLOYER_ADDRESS");
@@ -25,6 +34,7 @@ contract DeployAll is Script {
 
         vm.stopBroadcast();
 
+        console2.log("chainId:             ", block.chainid);
         console2.log("AgentCertificate:    ", address(cert));
         console2.log("ReencryptionOracle:  ", address(oracle));
         console2.log("ZeroArenaINFT:       ", address(inft));
@@ -38,6 +48,11 @@ contract DeployAll is Script {
             '  },\n',
             '  "deployBlock": ', vm.toString(block.number), '\n}\n'
         );
-        vm.writeFile("deployments/galileo-testnet.json", json);
+        string memory outPath = string.concat(
+            "deployments/", vm.toString(block.chainid), ".json"
+        );
+        vm.writeFile(outPath, json);
+        console2.log("wrote:");
+        console2.log(outPath);
     }
 }

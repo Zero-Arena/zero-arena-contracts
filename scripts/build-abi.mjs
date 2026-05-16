@@ -1,14 +1,22 @@
 #!/usr/bin/env node
 // Build the @zero-arena/contracts npm package from the Foundry build
-// artifacts. Reads ABIs out of `out/` and merges with the deployment JSONs.
+// artifacts. Reads ABIs out of `out/` and merges with every chain's
+// deployment JSON under `deployments/`.
 //
 // Output:
-//   dist/abi/<Name>.json  (one per contract)
-//   dist/addresses.json
+//   dist/abi/<Name>.json   (one per contract)
+//   dist/addresses.json    { "<network>": { chainId, deployBlock, addresses } }
 //   dist/index.js
 //   dist/index.d.ts
+//
+// Network discovery: any file in `deployments/` whose name is either
+//   <chainId>.json
+//   <chainId>-paper-engine.json
+//   galileo-testnet.json          (legacy alias)
+//   galileo-paper-engine.json     (legacy alias)
+// is parsed and the chainId is read from the JSON's `chainId` field.
 
-import { readFile, mkdir, writeFile, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +31,18 @@ const CONTRACTS = [
   'LiveCertificate',
   'Season',
 ];
+
+const ZERO = '0x0000000000000000000000000000000000000000';
+
+// chainId → display slug used as the key in addresses.json.
+const NETWORK_SLUGS = {
+  16602: 'galileo',
+  16661: 'mainnet',
+};
+
+function slugForChainId(chainId) {
+  return NETWORK_SLUGS[chainId] ?? `chain-${chainId}`;
+}
 
 async function main() {
   const distDir = join(root, 'dist');
@@ -39,28 +59,57 @@ async function main() {
     await writeFile(join(distDir, 'abi', `${name}.json`), JSON.stringify(raw.abi, null, 2));
   }
 
-  const addresses = { AgentCertificate: ZERO, ZeroArenaINFT: ZERO, ReencryptionOracle: ZERO, LiveCertificate: ZERO, Season: ZERO };
-  let chainId = 16602;
-  let deployBlock = null;
-
-  const corePath = join(root, 'deployments', 'galileo-testnet.json');
-  if (existsSync(corePath)) {
-    const raw = JSON.parse(await readFile(corePath, 'utf8'));
-    chainId = raw.chainId ?? chainId;
-    deployBlock = raw.deployBlock ?? deployBlock;
-    Object.assign(addresses, raw.addresses ?? {});
-  }
-
-  const paperPath = join(root, 'deployments', 'galileo-paper-engine.json');
-  if (existsSync(paperPath)) {
-    const raw = JSON.parse(await readFile(paperPath, 'utf8'));
-    if (raw.paperEngine) {
-      addresses.LiveCertificate = raw.paperEngine.LiveCertificate ?? addresses.LiveCertificate;
-      addresses.Season = raw.paperEngine.Season ?? addresses.Season;
+  // Per-chain accumulator keyed by chainId.
+  const byChain = new Map();
+  function entryFor(chainId) {
+    if (!byChain.has(chainId)) {
+      byChain.set(chainId, {
+        chainId,
+        deployBlock: null,
+        addresses: {
+          AgentCertificate: ZERO,
+          ZeroArenaINFT: ZERO,
+          ReencryptionOracle: ZERO,
+          LiveCertificate: ZERO,
+          Season: ZERO,
+        },
+      });
     }
+    return byChain.get(chainId);
   }
 
-  const deployments = { galileo: { chainId, deployBlock, addresses } };
+  // Walk every JSON file in deployments/.
+  const deploymentsDir = join(root, 'deployments');
+  let files = [];
+  try {
+    files = await readdir(deploymentsDir);
+  } catch {
+    // No deployments yet — keep going so the package still builds.
+  }
+
+  for (const file of files) {
+    if (!file.endsWith('.json')) continue;
+    const raw = JSON.parse(await readFile(join(deploymentsDir, file), 'utf8'));
+    const chainId = Number(raw.chainId);
+    if (!Number.isFinite(chainId)) {
+      console.warn(`build-abi: ${file} has no chainId — skipping`);
+      continue;
+    }
+    const entry = entryFor(chainId);
+    if (raw.addresses) {
+      Object.assign(entry.addresses, raw.addresses);
+    }
+    if (raw.paperEngine) {
+      entry.addresses.LiveCertificate = raw.paperEngine.LiveCertificate ?? entry.addresses.LiveCertificate;
+      entry.addresses.Season = raw.paperEngine.Season ?? entry.addresses.Season;
+    }
+    if (raw.deployBlock != null) entry.deployBlock = raw.deployBlock;
+  }
+
+  const deployments = {};
+  for (const [chainId, entry] of byChain.entries()) {
+    deployments[slugForChainId(chainId)] = entry;
+  }
   await writeFile(join(distDir, 'addresses.json'), JSON.stringify(deployments, null, 2));
 
   const imports = CONTRACTS.map((n) => `import ${n} from './abi/${n}.json' with { type: 'json' };`).join('\n');
@@ -84,16 +133,20 @@ export interface DeploymentEntry {
 ${CONTRACTS.map((n) => `    ${n}: string;`).join('\n')}
   };
 }
-export declare const addresses: { galileo: DeploymentEntry };
+export declare const addresses: Record<string, DeploymentEntry>;
 `;
   await writeFile(join(distDir, 'index.d.ts'), indexDts);
 
   console.log(`✓ wrote @zero-arena/contracts artifacts to ${distDir}`);
   console.log(`  - ABIs:      ${CONTRACTS.length}`);
-  console.log(`  - networks:  galileo (chain ${chainId})`);
+  if (byChain.size === 0) {
+    console.log(`  - networks:  (none — run a deploy first)`);
+  } else {
+    for (const [chainId, entry] of byChain.entries()) {
+      console.log(`  - network:   ${slugForChainId(chainId)} (chain ${chainId}, block ${entry.deployBlock ?? '?'})`);
+    }
+  }
 }
-
-const ZERO = '0x0000000000000000000000000000000000000000';
 
 main().catch((err) => {
   console.error('build-abi failed:', err.message);
