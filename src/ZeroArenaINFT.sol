@@ -42,6 +42,9 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
     mapping(uint256 => bytes32) public storageRoots;
     mapping(uint256 => uint256) public certificateOf;
     mapping(uint256 => mapping(address => bytes)) public authorizations;
+    // Per-token transfer nonce (M3): bound into the oracle proof + incremented on
+    // each transfer so a captured proof can't be replayed within its deadline.
+    mapping(uint256 => uint256) public transferNonce;
 
     uint256 public nextTokenId = 1;
 
@@ -109,10 +112,13 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
         (bytes32 newMetadataHash, uint256 deadline, bytes memory signature) =
             abi.decode(proof, (bytes32, uint256, bytes));
 
+        uint256 nonce = transferNonce[tokenId];
         if (!oracle.verifyTransfer(
             address(this), tokenId, from, to,
-            keccak256(sealedKey), newMetadataHash, deadline, signature
+            keccak256(sealedKey), newMetadataHash, nonce, deadline, signature
         )) revert InvalidProof();
+        // Consume the nonce so this exact proof can't be replayed (M3).
+        unchecked { transferNonce[tokenId] = nonce + 1; }
 
         if (newMetadataHash != metadataHashes[tokenId]) {
             metadataHashes[tokenId] = newMetadataHash;
@@ -137,9 +143,12 @@ contract ZeroArenaINFT is ERC721, Ownable2Step, IERC7857 {
 
         unchecked { newTokenId = nextTokenId++; }
 
+        // Fresh newTokenId → its nonce starts at 0; uniqueness of newTokenId
+        // already makes a clone proof single-use. Pass it to keep the digest
+        // shape uniform with transfer() (M3).
         if (!oracle.verifyTransfer(
             address(this), newTokenId, owner_, to,
-            keccak256(sealedKey), newMetadataHash, deadline, signature
+            keccak256(sealedKey), newMetadataHash, transferNonce[newTokenId], deadline, signature
         )) revert InvalidProof();
 
         metadataHashes[newTokenId] = newMetadataHash;

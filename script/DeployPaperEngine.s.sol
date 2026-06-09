@@ -38,8 +38,10 @@ contract DeployPaperEngine is Script {
         // 1. Deploy LiveCertificate bound to the existing iNFT.
         LiveCertificate live = new LiveCertificate(admin, inftAddr);
 
-        // 2. Authorize the operator daemon to push epoch updates.
-        live.setUpdater(operator, true);
+        // 2. Per-token operator authorization is now owner-driven (H2): each
+        //    iNFT owner calls live.authorizeUpdater(tokenId, operator, true) to
+        //    delegate. There is no global admin-curated updater set anymore;
+        //    `operator` is logged below only as the address owners should grant.
 
         // 3. Deploy Season pointing at LiveCertificate + iNFT.
         Season season = new Season(admin, address(live), inftAddr);

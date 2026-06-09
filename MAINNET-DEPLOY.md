@@ -98,7 +98,7 @@ cat deployments/16661.json
 
 Append `ZA_ADDR_INFT=0x<ZeroArenaINFT-from-above>` to `.env`.
 
-## 5. Deploy arena layer (LiveCertificate + Season + authorize operator)
+## 5. Deploy arena layer (LiveCertificate + Season)
 
 ```bash
 source .env
@@ -112,9 +112,12 @@ forge script script/DeployPaperEngine.s.sol:DeployPaperEngine \
 Script:
 
 1. Deploys `LiveCertificate(admin, ZA_ADDR_INFT)`.
-2. Calls `live.setUpdater(OPERATOR_ADDRESS, true)` — authorizes the operator wallet globally.
-3. Deploys `Season(admin, address(live), ZA_ADDR_INFT)`.
-4. Writes `deployments/16661-paper-engine.json`.
+2. Deploys `Season(admin, address(live), ZA_ADDR_INFT)`.
+3. Writes `deployments/16661-paper-engine.json`.
+
+> **No global operator authorization (v0.3.0+ / H2).** `LiveCertificate.authorizedUpdaters` is now **per-token** — there is no global `setUpdater`. Each iNFT owner authorizes an operator for THEIR token via `authorizeUpdater(tokenId, operator, true)`, or runs owner-operated (no authorization needed). `OPERATOR_ADDRESS` in `.env` is read only for the console log + is the address you tell owners to delegate to.
+
+> **Redeploying ONLY the arena layer** (e.g. the R1/R2 Season + LiveCertificate bugfix — AgentCertificate/Oracle/iNFT unchanged): set `ZA_ADDR_INFT` to the **existing** iNFT from `deployments/16661.json`, run **only this step 5**, then propagate the two new addresses with `npm run sync:addresses -- --write` (see step 6 / [`ENV.md`](../ENV.md)) instead of editing files by hand. Existing iNFTs survive, but their live runs reset — owners must re-`authorizeUpdater` + re-`start()` on the new LiveCertificate, and any old Season's history is orphaned.
 
 ## 6. Rebuild + republish `@zero-arena/contracts`
 
@@ -207,9 +210,11 @@ cast call <ZeroArenaINFT-addr> "minSharpeX1000()(uint128)" --rpc-url $MAINNET_RP
 cast call <ReencryptionOracle-addr> "signer()(address)" --rpc-url $MAINNET_RPC_URL
 # → must equal $ORACLE_SIGNER_ADDRESS
 
-# LiveCertificate: operator is authorized
-cast call <LiveCertificate-addr> "authorizedUpdaters(address)(bool)" $OPERATOR_ADDRESS --rpc-url $MAINNET_RPC_URL
-# → true
+# LiveCertificate: per-token operator authorization (H2 — now (tokenId, operator) -> bool).
+# Right after deploy NO token is authorized yet, so this is false until an owner
+# calls authorizeUpdater(tokenId, operator, true).
+cast call <LiveCertificate-addr> "authorizedUpdaters(uint256,address)(bool)" <tokenId> $OPERATOR_ADDRESS --rpc-url $MAINNET_RPC_URL
+# -> false immediately post-deploy; true once that token's owner delegates
 
 # Season: nextSeasonId is 1, no seasons yet
 cast call <Season-addr> "nextSeasonId()(uint256)" --rpc-url $MAINNET_RPC_URL
@@ -217,7 +222,7 @@ cast call <Season-addr> "nextSeasonId()(uint256)" --rpc-url $MAINNET_RPC_URL
 
 ## 9. Out-of-scope for this runbook
 
-The session that runs this runbook stops after step 8. The following come in follow-up sessions:
+The session that runs this runbook stops after step 8. **Address propagation** across FE / backend / examples / docs is now one command — `npm run sync:addresses -- --write` (reads `deployments/16661*.json`; see [`ENV.md`](../ENV.md)). The remaining follow-ups:
 
 - Update SDK env defaults + init-wizard constants + dataset re-upload
 - Update backend default RPC + drop Galileo gas-price override + rotate Railway env vars
@@ -235,7 +240,7 @@ The session that runs this runbook stops after step 8. The following come in fol
 | - | - |
 | Deploy tx reverts | Inspect `cast tx <hash>` output; fix env / constructor args; re-run script (deploy script is idempotent only in the sense that re-running deploys NEW contracts at NEW addresses — old failed deploys cost gas but produce no contract) |
 | Wrong `ORACLE_SIGNER_ADDRESS` written into `ReencryptionOracle` | Admin calls `setSigner(newSigner)` from DEPLOYER wallet — same tx works on any chain |
-| Wrong `OPERATOR_ADDRESS` authorized in `LiveCertificate` | Admin calls `setUpdater(oldOp, false)` then `setUpdater(newOp, true)` |
+| Operator delegation needs changing | Per-token (H2): the TOKEN OWNER calls `authorizeUpdater(tokenId, oldOp, false)` / `authorizeUpdater(tokenId, newOp, true)`. There is no global admin updater toggle anymore. |
 | Thresholds too tight (mint reverts with `ThresholdNotMet`) | Admin calls `ZeroArenaINFT.setThresholds(minReturn, minSharpe)` |
 | Discovered bug post-deploy | Contracts are non-upgradeable. Redeploy fresh set, point SDK + FE + BE at the new addresses, communicate the migration. Existing iNFTs at the old addresses are orphaned (their cert points to the old `AgentCertificate`). |
 

@@ -49,23 +49,38 @@ contract LiveCertificate is Ownable2Step {
         uint128 liveSharpeX1000
     );
     event PaperRunStopped(uint256 indexed tokenId, uint8 status, uint64 stoppedAt);
-    event UpdaterSet(address indexed updater, bool allowed);
+    event UpdaterSet(uint256 indexed tokenId, address indexed updater, bool allowed);
 
     // Stored as the concrete type — start() reads the underlying cert via
     // inft.certificateContract().get() for the genesis cross-check.
     ZeroArenaINFT public immutable inft;
 
     mapping(uint256 => LiveRun) public runs;
-    mapping(address => bool) public authorizedUpdaters;
+    // Per-token operator consent (H2): authorizedUpdaters[tokenId][operator].
+    mapping(uint256 => mapping(address => bool)) public authorizedUpdaters;
 
     constructor(address admin, address inftAddress) Ownable(admin) {
         require(inftAddress != address(0), "zero addr");
         inft = ZeroArenaINFT(inftAddress);
     }
 
-    function setUpdater(address updater, bool allowed) external onlyOwner {
-        authorizedUpdaters[updater] = allowed;
-        emit UpdaterSet(updater, allowed);
+    // Per-token operator consent (H2). The TOKEN OWNER authorizes a specific
+    // operator to commit epochs for THEIR token — replacing the old global
+    // admin-curated set, under which ANY authorized operator could write ANY
+    // token's metrics (and thus rig Season payouts). update()/markLiquidated()
+    // additionally always allow the token owner itself (owner-operated mode).
+    function authorizeUpdater(uint256 tokenId, address updater, bool allowed) external {
+        if (inft.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        authorizedUpdaters[tokenId][updater] = allowed;
+        emit UpdaterSet(tokenId, updater, allowed);
+    }
+
+    // Authorized iff the caller is the token owner (owner-operated) OR an
+    // operator the owner delegated to via authorizeUpdater().
+    function _requireUpdater(uint256 tokenId) internal view {
+        if (msg.sender != inft.ownerOf(tokenId) && !authorizedUpdaters[tokenId][msg.sender]) {
+            revert UnauthorizedUpdater();
+        }
     }
 
     function start(uint256 tokenId, bytes32 initialCumulativeHash) external {
@@ -104,7 +119,7 @@ contract LiveCertificate is Ownable2Step {
     }
 
     function markLiquidated(uint256 tokenId) external {
-        if (!authorizedUpdaters[msg.sender]) revert UnauthorizedUpdater();
+        _requireUpdater(tokenId);
         LiveRun storage r = runs[tokenId];
         if (r.startedAt == 0) revert NotStarted();
         if (r.status != STATUS_ACTIVE) revert NotActive();
@@ -123,7 +138,7 @@ contract LiveCertificate is Ownable2Step {
         uint16  liveMaxDrawdownBps,
         uint16  liveWinRateBps
     ) external {
-        if (!authorizedUpdaters[msg.sender]) revert UnauthorizedUpdater();
+        _requireUpdater(tokenId);
         if (epochHash == bytes32(0)) revert EmptyHash();
 
         LiveRun storage r = runs[tokenId];

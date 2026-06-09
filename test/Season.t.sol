@@ -56,13 +56,15 @@ contract SeasonTest is Test {
         live = new LiveCertificate(admin, address(inft));
         season = new Season(admin, address(live), address(inft));
 
-        vm.prank(admin);
-        live.setUpdater(operator, true);
-
         // Bind tokens 1-3 to spot certificates owned by alice/bob/carol.
         inft.setToken(1, alice, _mintCert(alice, SPOT));
         inft.setToken(2, bob,   _mintCert(bob,   SPOT));
         inft.setToken(3, carol, _mintCert(carol, SPOT));
+
+        // Each owner delegates the operator to push their token's epochs (H2).
+        vm.prank(alice); live.authorizeUpdater(1, operator, true);
+        vm.prank(bob);   live.authorizeUpdater(2, operator, true);
+        vm.prank(carol); live.authorizeUpdater(3, operator, true);
 
         // Fund admin so it can create prize-pooled seasons.
         vm.deal(admin, 100 ether);
@@ -252,9 +254,9 @@ contract SeasonTest is Test {
         uint256 id = _setupSeasonWithThreeEnrolled();
         vm.warp(block.timestamp + 7 days + 1);
 
-        // bob (1200) before alice (2500) — out of order.
-        uint256[] memory bad = new uint256[](2);
-        bad[0] = 2; bad[1] = 1;
+        // Full-length hint but out of order: bob (1200) before alice (2500).
+        uint256[] memory bad = new uint256[](3);
+        bad[0] = 2; bad[1] = 1; bad[2] = 3;
         vm.expectRevert(Season.HintNotSorted.selector);
         season.settle(id, bad);
     }
@@ -263,10 +265,9 @@ contract SeasonTest is Test {
         uint256 id = _setupSeasonWithThreeEnrolled();
         vm.warp(block.timestamp + 7 days + 1);
 
-        // Token 99 is never enrolled; ownerOf doesn't have to resolve since
-        // the enrollment check fires first.
-        uint256[] memory bad = new uint256[](1);
-        bad[0] = 99;
+        // Full-length hint containing a token that was never enrolled.
+        uint256[] memory bad = new uint256[](3);
+        bad[0] = 1; bad[1] = 2; bad[2] = 99;
         vm.expectRevert(Season.NotEnrolled.selector);
         season.settle(id, bad);
     }
@@ -303,21 +304,66 @@ contract SeasonTest is Test {
         uint256[] memory sorted = new uint256[](1);
         sorted[0] = 1;
         uint256 aliceBefore = alice.balance;
+        uint256 adminBefore = admin.balance;
         season.settle(id, sorted);
 
-        assertEq(alice.balance - aliceBefore, 5 ether);
-        // Remaining 5 ether stays in the contract (escrow). v0.4 may add a
-        // refund-to-creator flow; v0.3 leaves it as protocol revenue.
+        assertEq(alice.balance - aliceBefore, 5 ether); // 50% to the sole winner
+        // Remaining 5 ether is refunded to the creator (C2) — nothing stranded.
+        assertEq(admin.balance - adminBefore, 5 ether);
+        assertEq(address(season).balance, 0);
     }
 
     function test_settle_empty_hint_pays_nothing() public {
         vm.prank(admin);
         uint256 id = season.createSeason{value: 10 ether}(_defaultSpec(1 hours, 7 days, 10 ether));
         vm.warp(block.timestamp + 7 days + 1 hours + 1);
+        uint256 adminBefore = admin.balance;
         uint256[] memory empty = new uint256[](0);
-        season.settle(id, empty);
-        // No payouts; settled flag set.
+        season.settle(id, empty); // 0 participants → empty hint is the complete ranking
+        // No winners; the whole pool is refunded to the creator (C2).
         (, , , , , , , , , , bool settled) = season.seasons(id);
         assertTrue(settled);
+        assertEq(admin.balance - adminBefore, 10 ether);
+        assertEq(address(season).balance, 0);
+    }
+
+    // L1 — ranking uses the IN-SEASON delta (current - enroll baseline), not the
+    // agent's lifetime return. A token with a huge pre-season lifetime return but
+    // a small in-season gain must lose to one with a larger in-season gain.
+    function test_settle_ranks_by_in_season_delta_not_lifetime() public {
+        vm.prank(admin);
+        uint256 id = season.createSeason{value: 10 ether}(_defaultSpec(1 hours, 7 days, 10 ether));
+
+        // Token 1 (alice) already carries a big LIFETIME return before the season.
+        vm.prank(alice); live.start(1, _certRunHashFor(alice, SPOT));
+        vm.prank(operator); live.update(1, 0, keccak256("pre"), int128(9000), 0, 0, 0); // +90% lifetime
+
+        // Enroll before startTime: alice baseline = 9000; bob baseline = 0 (run not started).
+        vm.prank(alice); season.enroll(id, 1);
+        vm.prank(bob);   season.enroll(id, 2);
+        assertEq(season.baselineReturnBps(id, 1), int128(9000));
+        assertEq(season.baselineReturnBps(id, 2), int128(0));
+
+        // Into the season window.
+        vm.warp(block.timestamp + 1 hours + 1);
+        vm.prank(bob); live.start(2, _certRunHashFor(bob, SPOT));
+
+        // In-season: alice +200 delta (9000→9200), bob +1500 delta (0→1500).
+        vm.prank(operator); live.update(1, 1, keccak256("a1"), int128(9200), 0, 0, 0);
+        vm.prank(operator); live.update(2, 0, keccak256("b0"), int128(1500), 0, 0, 0);
+
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Correct order is by in-season delta: bob (1500) > alice (200) → [2, 1].
+        // Under the old lifetime ranking this would revert HintNotSorted
+        // (9200 > 1500), so its success here proves delta-ranking.
+        uint256 bobBefore = bob.balance;
+        uint256 aliceBefore = alice.balance;
+        uint256[] memory sorted = new uint256[](2);
+        sorted[0] = 2; sorted[1] = 1;
+        season.settle(id, sorted);
+
+        assertEq(bob.balance - bobBefore, 5 ether);    // 50% — in-season winner
+        assertEq(alice.balance - aliceBefore, 3 ether); // 30% — despite higher lifetime
     }
 }

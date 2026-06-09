@@ -1,9 +1,9 @@
 {
   "chainId": 16661,
   "paperEngine": {
-    "LiveCertificate": "0x168c244c872f5FC2D737D3126D08e9EEE45fFbc7",
-    "Season": "0x4e900860565F9D399B7295c0D28CC7954202524e",
-    "operator": "0xB1a5402E46d5360D46A9fE0807D3C927b3f50DbD",
-    "deployBlock": 33417179
+    "LiveCertificate": "0x3f703dc5d20AdAC3Eda08eD6dd180558EAE8003f",
+    "Season": "0x440c4A3Cf3B97DA7616F7Da457cb1FEF0862a1Ad",
+    "operator": "0x0DCe34908552AC7348A99820Cc97F437e98c1654",
+    "deployBlock": 35713364
   }
 }

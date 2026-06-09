@@ -8,7 +8,7 @@ import {IReencryptionOracle} from "../interfaces/IReencryptionOracle.sol";
 
 // v0.1 trusted-signer stub. The off-chain service performs the actual
 // re-encryption (currently in a simulated TEE) and signs the proof here.
-// v0.2 replaces this with a contract that consumes a real TEE attestation.
+// v1.0 replaces this with a contract that consumes a real TEE attestation.
 contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -40,6 +40,7 @@ contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
         address to,
         bytes32 sealedKeyHash,
         bytes32 newMetadataHash,
+        uint256 nonce,
         uint256 deadline,
         bytes calldata signature
     ) external view returns (bool) {
@@ -47,7 +48,7 @@ contract ReencryptionOracle is Ownable2Step, IReencryptionOracle {
 
         bytes32 digest = keccak256(abi.encode(
             block.chainid, inft, tokenId, from, to,
-            sealedKeyHash, newMetadataHash, deadline
+            sealedKeyHash, newMetadataHash, nonce, deadline
         )).toEthSignedMessageHash();
 
         return digest.recover(signature) == signer;

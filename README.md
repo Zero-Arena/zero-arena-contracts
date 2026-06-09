@@ -41,10 +41,10 @@ Two layers — qualifier and arena.
 | Contract | Address |
 | - | - |
 | `AgentCertificate` | [`0x21a5DEA59cfA07B261d389A9554477e137805c2f`](https://chainscan.0g.ai/address/0x21a5DEA59cfA07B261d389A9554477e137805c2f) |
-| `ReencryptionOracle` | [`0x63909dA30b0d65ad72b32b3C8C82515f7BFA6Fd6`](https://chainscan.0g.ai/address/0x63909dA30b0d65ad72b32b3C8C82515f7BFA6Fd6) |
-| `ZeroArenaINFT` | [`0x4Bd4d45f206861aa7cD4421785a316A1dD06036f`](https://chainscan.0g.ai/address/0x4Bd4d45f206861aa7cD4421785a316A1dD06036f) |
-| `LiveCertificate` | [`0x168c244c872f5FC2D737D3126D08e9EEE45fFbc7`](https://chainscan.0g.ai/address/0x168c244c872f5FC2D737D3126D08e9EEE45fFbc7) |
-| `Season` | [`0x4e900860565F9D399B7295c0D28CC7954202524e`](https://chainscan.0g.ai/address/0x4e900860565F9D399B7295c0D28CC7954202524e) |
+| `ReencryptionOracle` | [`0x5514892c89385c0788E223EBbA9d6D6c219836F3`](https://chainscan.0g.ai/address/0x5514892c89385c0788E223EBbA9d6D6c219836F3) |
+| `ZeroArenaINFT` | [`0x6a04821A1C7412D09d7E8c938179C8cAA795B7BC`](https://chainscan.0g.ai/address/0x6a04821A1C7412D09d7E8c938179C8cAA795B7BC) |
+| `LiveCertificate` | [`0x3f703dc5d20AdAC3Eda08eD6dd180558EAE8003f`](https://chainscan.0g.ai/address/0x3f703dc5d20AdAC3Eda08eD6dd180558EAE8003f) |
+| `Season` | [`0x440c4A3Cf3B97DA7616F7Da457cb1FEF0862a1Ad`](https://chainscan.0g.ai/address/0x440c4A3Cf3B97DA7616F7Da457cb1FEF0862a1Ad) |
 
 - Deployer / admin / operator: [`0xB1a5402E46d5360D46A9fE0807D3C927b3f50DbD`](https://chainscan.0g.ai/address/0xB1a5402E46d5360D46A9fE0807D3C927b3f50DbD)
 - Oracle signer: [`0xDEf4B61EAF80eEd763c2D5C443e2b56cB2d600D1`](https://chainscan.0g.ai/address/0xDEf4B61EAF80eEd763c2D5C443e2b56cB2d600D1)

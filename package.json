@@ -1,6 +1,6 @@
 {
   "name": "@zero-arena/contracts",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "ABIs and deployed addresses for the Zero Arena on-chain contracts.",
   "license": "MIT",
   "type": "module",
@@ -23,6 +23,7 @@
   ],
   "scripts": {
     "build:abi": "node scripts/build-abi.mjs",
+    "sync:addresses": "node scripts/sync-addresses.mjs",
     "prepublishOnly": "npm run build:abi"
   },
   "publishConfig": {

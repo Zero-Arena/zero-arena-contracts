@@ -48,12 +48,13 @@ contract ZeroArenaINFTTest is Test {
         address to,
         bytes memory sealedKey,
         bytes32 newMetadata,
+        uint256 nonce,
         uint256 deadline
     ) internal view returns (bytes memory proof) {
         bytes32 inner = keccak256(
             abi.encode(
                 block.chainid, address(inft), tokenId, from, to,
-                keccak256(sealedKey), newMetadata, deadline
+                keccak256(sealedKey), newMetadata, nonce, deadline
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", inner));
@@ -114,13 +115,43 @@ contract ZeroArenaINFTTest is Test {
         bytes memory sealedKey = bytes("sealed-for-bob");
         bytes32 newMeta = keccak256("metadata-v2");
         uint256 deadline = block.timestamp + 1 hours;
-        bytes memory proof = _signProof(tokenId, alice, bob, sealedKey, newMeta, deadline);
+        bytes memory proof = _signProof(tokenId, alice, bob, sealedKey, newMeta, 0, deadline);
 
         vm.prank(alice);
         inft.transfer(alice, bob, tokenId, sealedKey, proof);
 
         assertEq(inft.ownerOf(tokenId), bob);
         assertEq(inft.metadataHashes(tokenId), newMeta);
+        assertEq(inft.transferNonce(tokenId), 1); // nonce consumed (M3)
+    }
+
+    // M3 — a captured proof cannot be replayed once its nonce is consumed.
+    function test_transfer_proof_replay_reverts() public {
+        uint256 certId = _submitPassingCert(alice);
+        vm.prank(alice);
+        uint256 tokenId = inft.mint(certId, META, ROOT);
+
+        bytes memory sealedKey = bytes("sealed-for-bob");
+        bytes32 newMeta = keccak256("metadata-v2");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // alice -> bob, signed at nonce 0.
+        bytes memory proof0 = _signProof(tokenId, alice, bob, sealedKey, newMeta, 0, deadline);
+        vm.prank(alice);
+        inft.transfer(alice, bob, tokenId, sealedKey, proof0);
+        assertEq(inft.ownerOf(tokenId), bob);
+
+        // bob -> alice, fresh proof at the now-current nonce 1.
+        bytes memory proof1 = _signProof(tokenId, bob, alice, sealedKey, newMeta, 1, deadline);
+        vm.prank(bob);
+        inft.transfer(bob, alice, tokenId, sealedKey, proof1);
+        assertEq(inft.ownerOf(tokenId), alice);
+
+        // Replay the FIRST proof (nonce 0) while still inside its deadline — the
+        // contract is now at nonce 2, so the recovered signer won't match.
+        vm.prank(alice);
+        vm.expectRevert(ZeroArenaINFT.InvalidProof.selector);
+        inft.transfer(alice, bob, tokenId, sealedKey, proof0);
     }
 
     function test_transfer_with_bad_signature_reverts() public {
@@ -136,7 +167,7 @@ contract ZeroArenaINFTTest is Test {
         bytes32 inner = keccak256(
             abi.encode(
                 block.chainid, address(inft), tokenId, alice, bob,
-                keccak256(sealedKey), META, deadline
+                keccak256(sealedKey), META, uint256(0), deadline
             )
         );
         bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", inner));

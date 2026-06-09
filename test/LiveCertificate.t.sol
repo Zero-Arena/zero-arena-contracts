@@ -51,13 +51,14 @@ contract LiveCertificateTest is Test {
         inft = new MockINFT(certs);
         live = new LiveCertificate(admin, address(inft));
 
-        vm.prank(admin);
-        live.setUpdater(operator, true);
-
         // Bind TOKEN_A to a cert whose runHash matches GENESIS_HASH so
         // existing start()-then-update() tests continue to work.
         uint256 certId = _submitCert(alice, GENESIS_HASH);
         inft.setToken(TOKEN_A, alice, certId);
+
+        // alice (owner) delegates the operator to push TOKEN_A's epochs (H2).
+        vm.prank(alice);
+        live.authorizeUpdater(TOKEN_A, operator, true);
     }
 
     function _submitCert(address owner, bytes32 runHash) internal returns (uint256) {
@@ -163,9 +164,19 @@ contract LiveCertificateTest is Test {
         vm.prank(alice);
         live.start(TOKEN_A, GENESIS_HASH);
 
-        vm.prank(alice); // alice is the owner, not an updater
+        vm.prank(bob); // bob is neither the owner nor an authorized updater
         vm.expectRevert(LiveCertificate.UnauthorizedUpdater.selector);
         live.update(TOKEN_A, 0, keccak256("epoch-0"), 0, 0, 0, 0);
+    }
+
+    function test_update_allows_owner_self_operated() public {
+        vm.prank(alice);
+        live.start(TOKEN_A, GENESIS_HASH);
+
+        // Owner-operated mode: the token owner pushes epochs with no delegation.
+        vm.prank(alice);
+        live.update(TOKEN_A, 0, keccak256("epoch-0"), int128(50), 0, 0, 0);
+        assertEq(live.get(TOKEN_A).epochCount, 1);
     }
 
     function test_update_rejects_out_of_order_epoch() public {
@@ -221,11 +232,11 @@ contract LiveCertificateTest is Test {
         live.stop(TOKEN_A);
     }
 
-    function test_markLiquidated_operator_only() public {
+    function test_markLiquidated_rejects_unauthorized() public {
         vm.prank(alice);
         live.start(TOKEN_A, GENESIS_HASH);
 
-        vm.prank(alice);
+        vm.prank(bob); // not owner, not authorized
         vm.expectRevert(LiveCertificate.UnauthorizedUpdater.selector);
         live.markLiquidated(TOKEN_A);
 
@@ -236,16 +247,16 @@ contract LiveCertificateTest is Test {
 
     // ─── admin ────────────────────────────────────────────────────────────
 
-    function test_setUpdater_only_owner() public {
+    function test_authorizeUpdater_only_token_owner() public {
         address mallory = makeAddr("mallory");
-        vm.prank(mallory);
-        vm.expectRevert();
-        live.setUpdater(mallory, true);
+        vm.prank(mallory); // not the owner of TOKEN_A
+        vm.expectRevert(LiveCertificate.NotTokenOwner.selector);
+        live.authorizeUpdater(TOKEN_A, mallory, true);
     }
 
-    function test_setUpdater_can_revoke() public {
-        vm.prank(admin);
-        live.setUpdater(operator, false);
+    function test_authorizeUpdater_can_revoke() public {
+        vm.prank(alice); // owner revokes the operator's delegation
+        live.authorizeUpdater(TOKEN_A, operator, false);
 
         vm.prank(alice);
         live.start(TOKEN_A, GENESIS_HASH);
