@@ -80,6 +80,7 @@ const TARGETS = [
   'README.md',
   'contracts/README.md',
   'sdk/README.md',
+  'sdk/src/cli/commands/init.ts',
   'examples/README.md',
   'zero-arena-fe/README.md',
   'zero-arena-bacend/README.md',
